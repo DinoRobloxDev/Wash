@@ -8,11 +8,11 @@ local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
 
--- Find the "prompt" object using the mixed method.
-local prompt = Workspace:WaitForChild("WashingMachine").Interaction.prompt
-if not prompt then
-    warn("The 'prompt' object was not found, as the children may not have loaded.")
-end
+-- Find the ProximityPrompt object using your code.
+local washMachine = Workspace:FindFirstChild("WashingMachine")
+if not washMachine then warn("No washing machine found.") end
+local prompt = washMachine:FindFirstChild("Interaction"):FindFirstChildWhichIsA("ProximityPrompt", true)
+if not prompt then warn("ProximityPrompt not found.") end
 
 -- Coordinates for the fast movement
 local pointA = Vector3.new(2454.063720703125, 285.8049621532031, -1341.2506103515626)
@@ -73,12 +73,16 @@ local function onRenderStep(deltaTime)
         local distance = direction.Magnitude
         local normalizedDirection = direction.Unit
         
-        -- Check if we're close enough to switch points
         if distance < teleportDistance * 2 then
             if currentTarget == "A" then
                 moveCounter = moveCounter + 1
             end
             
+            -- Trigger the ProximityPrompt when we arrive at pointA
+            if currentTarget == "B" and prompt then
+                prompt.Triggered:Fire()
+            end
+
             currentTarget = (currentTarget == "A") and "B" or "A"
             HumanoidRootPart.CFrame = CFrame.new(targetPosition)
 
@@ -100,10 +104,6 @@ local function onRenderStep(deltaTime)
                     connection = nil
                 end
                 
-                if prompt then
-                    prompt:HoldInputEnd(LocalPlayer)
-                end
-                
                 return
             end
         else
@@ -112,10 +112,6 @@ local function onRenderStep(deltaTime)
             
             local lookAtCFrame = CFrame.lookAt(HumanoidRootPart.Position, HumanoidRootPart.Position + normalizedDirection)
             HumanoidRootPart.CFrame = CFrame.new(HumanoidRootPart.CFrame.Position) * lookAtCFrame.Rotation
-        end
-
-        if prompt then
-            prompt:HoldInputBegin(LocalPlayer)
         end
     end
 end
@@ -131,10 +127,6 @@ toggleButton.MouseButton1Click:Connect(function()
     else
         toggleButton.Text = "START"
         toggleButton.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
-        
-        if prompt then
-            prompt:HoldInputEnd(LocalPlayer)
-        end
         
         if connection then
             connection:Disconnect()
