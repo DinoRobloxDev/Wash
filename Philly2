@@ -6,41 +6,102 @@ local Workspace = game:GetService("Workspace")
 
 -- Configuration
 local INTERACTION_RADIUS = 650
-local IGNORE_HOLD_PROMPTS = true -- Set to true to ignore prompts that require holding
-local MIN_HOLD_DURATION = 0.5 -- Only affects if IGNORE_HOLD_PROMPTS is false
+local IGNORE_HOLD_PROMPTS = true
+local MIN_HOLD_DURATION = 0.5
 
 -- Variables
 local localPlayer = Players.LocalPlayer
 local character = localPlayer.Character or localPlayer.CharacterAdded:Wait()
 local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+local activeUIs = {}
+
+-- UI Template (Create this once to avoid performance issues)
+local promptGuiTemplate = Instance.new("BillboardGui")
+promptGuiTemplate.Size = UDim2.new(5, 0, 1, 0)
+promptGuiTemplate.ExtentsOffset = Vector3.new(0, 5, 0) -- Adjust to move UI above the part
+promptGuiTemplate.AlwaysOnTop = true
+promptGuiTemplate.LightInfluence = 0.5
+promptGuiTemplate.StudsOffset = Vector3.new(0, 10, 0) -- Adjust vertical offset
+
+local promptTextLabel = Instance.new("TextLabel")
+promptTextLabel.Size = UDim2.new(1, 0, 1, 0)
+promptTextLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+promptTextLabel.BackgroundTransparency = 0.5
+promptTextLabel.BorderSizePixel = 0
+promptTextLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+promptTextLabel.Font = Enum.Font.SourceSansBold
+promptTextLabel.TextSize = 16
+promptTextLabel.TextScaled = true
+promptTextLabel.Parent = promptGuiTemplate
+
+-- FIX: ZIndex is a property of the TextLabel, not the BillboardGui
+promptTextLabel.ZIndex = 10
 
 -- Main Loop
 RunService.RenderStepped:Connect(function()
     -- Get all ProximityPrompts in the game
     local allPrompts = ProximityPromptService:GetChildren()
+    local promptsInRadius = {}
 
-    -- Check each prompt
+    -- Find prompts in radius and trigger them
     for _, prompt in ipairs(allPrompts) do
-        -- Make sure the prompt is active and has a parent
+        -- Check if the prompt is valid and visible
         if prompt and prompt.Parent and prompt:IsA("ProximityPrompt") then
-            -- Check if we should ignore hold prompts
-            if IGNORE_HOLD_PROMPTS and prompt.HoldDuration > 0 then
-                continue
-            end
+            -- Get character's position
+            if not humanoidRootPart or not humanoidRootPart.Parent then continue end
 
-            -- Calculate distance from player to the prompt's parent part
             local distance = (humanoidRootPart.Position - prompt.Parent.Position).Magnitude
 
-            -- If the prompt is within the specified radius
             if distance <= INTERACTION_RADIUS then
-                -- Check if the prompt is not a hold prompt or if its duration is short enough
+                table.insert(promptsInRadius, prompt)
+
+                -- Check if we should ignore hold prompts
+                if IGNORE_HOLD_PROMPTS and prompt.HoldDuration > 0 then
+                    continue
+                end
+
+                -- Trigger the prompt
                 if prompt.HoldDuration == 0 or (prompt.HoldDuration > 0 and prompt.HoldDuration <= MIN_HOLD_DURATION) then
-                    -- Trigger the prompt
                     prompt:Trigger()
                 end
             end
         end
     end
+
+    -- Update UI for prompts in radius and clean up old ones
+    for _, prompt in ipairs(allPrompts) do
+        if table.find(promptsInRadius, prompt) then
+            -- Prompt is in range, make sure its UI is visible
+            if not activeUIs[prompt] then
+                -- Create a new UI if it doesn't exist
+                local newGui = promptGuiTemplate:Clone()
+                newGui.Parent = prompt.Parent
+                newGui.Adornee = prompt.Parent
+                activeUIs[prompt] = newGui
+            end
+            
+            -- Update the text and make it visible
+            local promptGui = activeUIs[prompt]
+            local textLabel = promptGui:FindFirstChildOfClass("TextLabel")
+            if textLabel then
+                textLabel.Text = string.format("%s (%.1f)", prompt.ObjectText or "Prompt", (humanoidRootPart.Position - prompt.Parent.Position).Magnitude)
+            end
+            promptGui.Enabled = true
+        else
+            -- Prompt is out of range, hide its UI
+            if activeUIs[prompt] then
+                activeUIs[prompt].Enabled = false
+            end
+        end
+    end
 end)
 
-print("ProximityPrompt auto-interact script loaded. Activating prompts within " .. INTERACTION_RADIUS .. " studs. 🤖")
+-- Clean up UIs when prompts are destroyed
+ProximityPromptService.ChildRemoved:Connect(function(child)
+    if activeUIs[child] then
+        activeUIs[child]:Destroy()
+        activeUIs[child] = nil
+    end
+end)
+
+print("ProximityPrompt auto-interact and UI display script loaded. ðŸ¤–")
