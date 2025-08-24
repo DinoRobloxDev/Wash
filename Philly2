@@ -19,12 +19,7 @@ end
 local pointA = Vector3.new(2454.063720703125, 285.8049621532031, -1341.2506103515626)
 local pointB = Vector3.new(2473.269775390625, 285.8037414550781, -1341.27783203125)
 
----
-## UI Creation
-
-This section creates the UI with the start button.
----
-
+-- UI Creation
 local playerGui = LocalPlayer:WaitForChild("PlayerGui")
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "AutoMoveUI"
@@ -55,12 +50,7 @@ toggleButton.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
 toggleButton.TextColor3 = Color3.new(1, 1, 1)
 toggleButton.Parent = frame
 
----
-## Movement Logic
-
-This section handles the movement and interaction.
----
-
+-- Movement variables
 local isRunning = false
 local currentTarget = "B"
 local teleportSpeed = 85
@@ -96,8 +86,7 @@ local function onRenderStep(deltaTime)
             HumanoidRootPart.CFrame = CFrame.new(HumanoidRootPart.CFrame.Position) * lookAtCFrame.Rotation
         end
 
-        -- This is how you "emulate" the E key press.
-        -- It fires the RemoteEvent that the game listens for.
+        -- This is the line that was causing the error. The "if" check prevents it.
         if promptRemoteEvent then
             promptRemoteEvent:FireServer(HumanoidRootPart)
         end
