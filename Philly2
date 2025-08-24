@@ -24,7 +24,7 @@ local moneyServer = win:Server("Money", "")
 local moneyChannel = moneyServer:Channel("Automation")
 
 local prompts = {}
-local originalDistances = {}
+local originalProperties = {}
 
 -- A function to find and store the prompts based on the provided hierarchy.
 local function findWashers()
@@ -35,7 +35,13 @@ local function findWashers()
             local grandparent = parent and parent.Parent
             if parent and parent.Name == "Interaction" and grandparent and grandparent.Name == "WashingMachine" then
                 table.insert(prompts, descendant)
-                originalDistances[descendant] = descendant.MaxActivationDistance
+                -- Store original properties
+                originalProperties[descendant] = {
+                    MaxActivationDistance = descendant.MaxActivationDistance,
+                    RequiresLineOfSight = descendant.RequiresLineOfSight,
+                    Enabled = descendant.Enabled,
+                    Style = descendant.Style
+                }
             end
         end
     end
@@ -51,8 +57,17 @@ moneyChannel:Toggle("Show Prompts", false, function(value)
         for _, prompt in ipairs(prompts) do
             if value then
                 prompt.MaxActivationDistance = math.huge
+                prompt.RequiresLineOfSight = false
+                prompt.Enabled = true
+                prompt.Style = Enum.ProximityPromptStyle.Custom
             else
-                prompt.MaxActivationDistance = originalDistances[prompt] or 10
+                local origProps = originalProperties[prompt]
+                if origProps then
+                    prompt.MaxActivationDistance = origProps.MaxActivationDistance
+                    prompt.RequiresLineOfSight = origProps.RequiresLineOfSight
+                    prompt.Enabled = origProps.Enabled
+                    prompt.Style = origProps.Style
+                end
             end
         end
         DiscordLib:Notification("Success", "Prompt visibility toggled!", "Okay!")
