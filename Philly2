@@ -8,13 +8,15 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 -- UI Library
 local DiscordLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/UI-Libs/main/discord%20lib.txt"))()
 
--- The RemoteEvent you found. This must be the correct path.
-local promptRemoteEvent = ReplicatedStorage:FindFirstChild("interactionFunction")
-
 -- Universal Functions
 local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local Humanoid = Character:WaitForChild("Humanoid")
 local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+local Camera = Workspace.CurrentCamera
+
+-- The RemoteEvent you found. This must be the correct path.
+local promptRemoteEvent = ReplicatedStorage:FindFirstChild("interactionFunction")
 
 -- UI Creation
 local win = DiscordLib:Window("Instant Wash")
@@ -23,13 +25,14 @@ local moneyChannel = moneyServer:Channel("Automation")
 
 local prompts = {}
 
--- A function to find and store the prompts. This is a good practice to avoid
--- repeated searches.
+-- A function to find and store the prompts based on the provided hierarchy.
 local function findWashers()
     prompts = {}
     for _, descendant in ipairs(Workspace:GetDescendants()) do
         if descendant and descendant:IsA("ProximityPrompt") then
-            if descendant.Parent and descendant.Parent:IsA("Part") and descendant.Parent:FindFirstChildOfClass("TextLabel") and string.lower(descendant.Parent:FindFirstChildOfClass("TextLabel").Text) == "wash money..." then
+            local parent = descendant.Parent
+            local grandparent = parent and parent.Parent
+            if parent and parent.Name == "Interaction" and grandparent and grandparent.Name == "WashingMachine" then
                 table.insert(prompts, descendant)
             end
         end
