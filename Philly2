@@ -8,12 +8,18 @@ local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
 
--- Find the "prompt" object using the best of both approaches.
+-- Find the "prompt" object.
 local washMachine = Workspace:WaitForChild("WashingMachine")
 local prompt = washMachine:WaitForChild("Interaction"):FindFirstChildWhichIsA("ProximityPrompt", true)
 
 if not prompt then
     warn("ProximityPrompt not found.")
+else
+    -- SETTING PROXIMITYPROMPT PROPERTIES: This is what you found.
+    prompt.Enabled = true
+    prompt.HoldDuration = 0
+    prompt.MaxActivationDistance = 12
+    prompt.Exclusivity = Enum.ProximityPromptExclusivity.AlwaysShow
 end
 
 -- Coordinates for the fast movement
