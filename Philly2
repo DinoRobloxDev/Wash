@@ -8,11 +8,13 @@ local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
 
--- Find the ProximityPrompt object using your code.
-local washMachine = Workspace:FindFirstChild("WashingMachine")
-if not washMachine then warn("No washing machine found.") end
-local prompt = washMachine:FindFirstChild("Interaction"):FindFirstChildWhichIsA("ProximityPrompt", true)
-if not prompt then warn("ProximityPrompt not found.") end
+-- Find the "prompt" object using the best of both approaches.
+local washMachine = Workspace:WaitForChild("WashingMachine")
+local prompt = washMachine:WaitForChild("Interaction"):FindFirstChildWhichIsA("ProximityPrompt", true)
+
+if not prompt then
+    warn("ProximityPrompt not found.")
+end
 
 -- Coordinates for the fast movement
 local pointA = Vector3.new(2454.063720703125, 285.8049621532031, -1341.2506103515626)
@@ -78,11 +80,6 @@ local function onRenderStep(deltaTime)
                 moveCounter = moveCounter + 1
             end
             
-            -- Trigger the ProximityPrompt when we arrive at pointA
-            if currentTarget == "B" and prompt then
-                prompt.Triggered:Fire()
-            end
-
             currentTarget = (currentTarget == "A") and "B" or "A"
             HumanoidRootPart.CFrame = CFrame.new(targetPosition)
 
@@ -104,6 +101,10 @@ local function onRenderStep(deltaTime)
                     connection = nil
                 end
                 
+                if prompt then
+                    prompt:InputHoldEnd()
+                end
+                
                 return
             end
         else
@@ -112,6 +113,10 @@ local function onRenderStep(deltaTime)
             
             local lookAtCFrame = CFrame.lookAt(HumanoidRootPart.Position, HumanoidRootPart.Position + normalizedDirection)
             HumanoidRootPart.CFrame = CFrame.new(HumanoidRootPart.CFrame.Position) * lookAtCFrame.Rotation
+        end
+
+        if prompt then
+            prompt:InputHoldBegin()
         end
     end
 end
@@ -127,6 +132,10 @@ toggleButton.MouseButton1Click:Connect(function()
     else
         toggleButton.Text = "START"
         toggleButton.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+        
+        if prompt then
+            prompt:InputHoldEnd()
+        end
         
         if connection then
             connection:Disconnect()
