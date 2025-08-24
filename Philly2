@@ -1,159 +1,105 @@
 -- Services
 local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ProximityPromptService = game:GetService("ProximityPromptService")
+local Workspace = game:GetService("Workspace")
 
--- Universal Functions
-local LocalPlayer = Players.LocalPlayer
-local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-local Humanoid = Character:WaitForChild("Humanoid")
-local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
-local Camera = Workspace.CurrentCamera
+-- Configuration
+local INTERACTION_RADIUS = 650
+local IGNORE_HOLD_PROMPTS = true
+local MIN_HOLD_DURATION = 0.5
 
--- The RemoteEvent you found. This must be the correct path.
-local promptRemoteEvent = ReplicatedStorage:FindFirstChild("interactionFunction")
+-- Variables
+local localPlayer = Players.LocalPlayer
+local character = localPlayer.Character or localPlayer.CharacterAdded:Wait()
+local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+local activeUIs = {}
 
-local interactables = {}
-local originalProperties = {}
+-- UI Template (Create this once to avoid performance issues)
+local promptGuiTemplate = Instance.new("BillboardGui")
+promptGuiTemplate.Size = UDim2.new(5, 0, 1, 0)
+promptGuiTemplate.ExtentsOffset = Vector3.new(0, 5, 0) -- Adjust to move UI above the part
+promptGuiTemplate.AlwaysOnTop = true
+promptGuiTemplate.ZIndex = 10
+promptGuiTemplate.LightInfluence = 0.5
+promptGuiTemplate.StudsOffset = Vector3.new(0, 10, 0) -- Adjust vertical offset
 
--- A function to find and store the interactable objects.
-local function findInteractables()
-    interactables = {}
-    for _, descendant in ipairs(Workspace:GetDescendants()) do
-        local parent = descendant.Parent
-        local grandparent = parent and parent.Parent
-        
-        if grandparent and grandparent.Name == "WashingMachine" then
-            -- Check for ProximityPrompt
-            if descendant:IsA("ProximityPrompt") then
-                table.insert(interactables, descendant)
-                -- Store original properties
-                originalProperties[descendant] = {
-                    MaxActivationDistance = descendant.MaxActivationDistance,
-                    RequiresLineOfSight = descendant.RequiresLineOfSight,
-                    Enabled = descendant.Enabled,
-                    Style = descendant.Style
-                }
-                -- Check for ClickDetector
-            elseif descendant:IsA("ClickDetector") then
-                table.insert(interactables, descendant)
-                -- Check for a Part that might be used for 'Touched' events
-            elseif descendant:IsA("Part") and (descendant.Name == "Interaction" or descendant.Name == "ClickPart") then
-                table.insert(interactables, descendant)
-            end
-        end
-    end
-end
+local promptTextLabel = Instance.new("TextLabel")
+promptTextLabel.Size = UDim2.new(1, 0, 1, 0)
+promptTextLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+promptTextLabel.BackgroundTransparency = 0.5
+promptTextLabel.BorderSizePixel = 0
+promptTextLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+promptTextLabel.Font = Enum.Font.SourceSansBold
+promptTextLabel.TextSize = 16
+promptTextLabel.TextScaled = true
+promptTextLabel.Parent = promptGuiTemplate
 
----
-### **UI Creation**
+-- Main Loop
+RunService.RenderStepped:Connect(function()
+    -- Get all ProximityPrompts in the game
+    local allPrompts = ProximityPromptService:GetChildren()
+    local promptsInRadius = {}
 
-local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "InstantWashUI"
-screenGui.Parent = playerGui
+    -- Find prompts in radius and trigger them
+    for _, prompt in ipairs(allPrompts) do
+        -- Check if the prompt is valid and visible
+        if prompt and prompt.Parent and prompt:IsA("ProximityPrompt") then
+            -- Get character's position
+            if not humanoidRootPart or not humanoidRootPart.Parent then continue end
 
-local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 200, 0, 100)
-frame.Position = UDim2.new(0.5, -100, 0.5, -50)
-frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-frame.BorderColor3 = Color3.fromRGB(20, 20, 20)
-frame.Draggable = true
-frame.Parent = screenGui
+            local distance = (humanoidRootPart.Position - prompt.Parent.Position).Magnitude
 
-local title = Instance.new("TextLabel")
-title.Text = "Instant Wash"
-title.Size = UDim2.new(1, 0, 0, 25)
-title.Position = UDim2.new(0, 0, 0, 0)
-title.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-title.TextColor3 = Color3.new(1, 1, 1)
-title.Parent = frame
+            if distance <= INTERACTION_RADIUS then
+                table.insert(promptsInRadius, prompt)
 
-local toggleButton = Instance.new("TextButton")
-toggleButton.Text = "Show Prompts: OFF"
-toggleButton.Size = UDim2.new(0.9, 0, 0, 30)
-toggleButton.Position = UDim2.new(0.05, 0, 0.3, 0)
-toggleButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-toggleButton.TextColor3 = Color3.new(1, 1, 1)
-toggleButton.Parent = frame
+                -- Check if we should ignore hold prompts
+                if IGNORE_HOLD_PROMPTS and prompt.HoldDuration > 0 then
+                    continue
+                end
 
-local instantWashButton = Instance.new("TextButton")
-instantWashButton.Text = "Instant Wash"
-instantWashButton.Size = UDim2.new(0.9, 0, 0, 30)
-instantWashButton.Position = UDim2.new(0.05, 0, 0.65, 0)
-instantWashButton.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
-instantWashButton.TextColor3 = Color3.new(1, 1, 1)
-instantWashButton.Parent = frame
-
-local isToggled = false
-
-toggleButton.MouseButton1Click:Connect(function()
-    isToggled = not isToggled
-    if isToggled then
-        toggleButton.Text = "Show Prompts: ON"
-        toggleButton.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
-    else
-        toggleButton.Text = "Show Prompts: OFF"
-        toggleButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    end
-    
-    if #interactables == 0 then
-        findInteractables()
-    end
-    
-    if #interactables > 0 then
-        for _, interactable in ipairs(interactables) do
-            if interactable:IsA("ProximityPrompt") then
-                if isToggled then
-                    interactable.MaxActivationDistance = math.huge
-                    interactable.RequiresLineOfSight = false
-                    interactable.Enabled = true
-                    interactable.Style = Enum.ProximityPromptStyle.Custom
-                else
-                    local origProps = originalProperties[interactable]
-                    if origProps then
-                        interactable.MaxActivationDistance = origProps.MaxActivationDistance
-                        interactable.RequiresLineOfSight = origProps.RequiresLineOfSight
-                        interactable.Enabled = origProps.Enabled
-                        interactable.Style = origProps.Style
-                    end
+                -- Trigger the prompt
+                if prompt.HoldDuration == 0 or (prompt.HoldDuration > 0 and prompt.HoldDuration <= MIN_HOLD_DURATION) then
+                    prompt:Trigger()
                 end
             end
         end
-    else
-        warn("No washing machine interactables found.")
     end
-end)
 
-instantWashButton.MouseButton1Click:Connect(function()
-    if #interactables == 0 then
-        findInteractables()
-    end
-    
-    if not promptRemoteEvent then
-        warn("Interaction remote not found!")
-        return
-    end
-    
-    if #interactables > 0 then
-        local interactedCount = 0
-        for _, interactable in ipairs(interactables) do
-            if (HumanoidRootPart.Position - interactable.Parent.Position).Magnitude <= 200 then
-                promptRemoteEvent:FireServer(interactable)
-                interactedCount = interactedCount + 1
+    -- Update UI for prompts in radius and clean up old ones
+    for _, prompt in ipairs(allPrompts) do
+        if table.find(promptsInRadius, prompt) then
+            -- Prompt is in range, make sure its UI is visible
+            if not activeUIs[prompt] then
+                -- Create a new UI if it doesn't exist
+                local newGui = promptGuiTemplate:Clone()
+                newGui.Parent = prompt.Parent
+                newGui.Adornee = prompt.Parent
+                activeUIs[prompt] = newGui
+            end
+            
+            -- Update the text and make it visible
+            local promptGui = activeUIs[prompt]
+            local textLabel = promptGui:FindFirstChildOfClass("TextLabel")
+            if textLabel then
+                textLabel.Text = string.format("%s (%.1f)", prompt.ObjectText or "Prompt", (humanoidRootPart.Position - prompt.Parent.Position).Magnitude)
+            end
+            promptGui.Enabled = true
+        else
+            -- Prompt is out of range, hide its UI
+            if activeUIs[prompt] then
+                activeUIs[prompt].Enabled = false
             end
         end
-        
-        if interactedCount > 0 then
-            print("Interacted with " .. interactedCount .. " objects!")
-        else
-            warn("No interactables found within 200 studs.")
-        end
-    else
-        warn("No washing machine interactables found.")
     end
 end)
 
-print("Instant Wash script loaded successfully.")
+-- Clean up UIs when prompts are destroyed
+ProximityPromptService.ChildRemoved:Connect(function(child)
+    if activeUIs[child] then
+        activeUIs[child]:Destroy()
+        activeUIs[child] = nil
+    end
+end)
+
+print("ProximityPrompt auto-interact and UI display script loaded. ðŸ¤–")
