@@ -9,17 +9,20 @@ local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
 
--- The RemoteEvent you found. This must be the correct path.
-local promptRemoteEvent = ReplicatedStorage:FindFirstChild("interactionFunction")
-if not promptRemoteEvent then
-    warn("interactionFunction RemoteEvent not found!")
+-- Find the "prompt" object based on the hierarchy you provided.
+local prompt = Workspace:WaitForChild("WashingMachine", 10):WaitForChild("Interaction", 10):WaitForChild("prompt", 10)
+if not prompt then
+    warn("The 'prompt' object was not found. Please check the hierarchy.")
 end
 
 -- Coordinates for the fast movement
 local pointA = Vector3.new(2454.063720703125, 285.8049621532031, -1341.2506103515626)
 local pointB = Vector3.new(2473.269775390625, 285.8037414550781, -1341.27783203125)
 
--- UI Creation
+---
+## UI Creation
+---
+
 local playerGui = LocalPlayer:WaitForChild("PlayerGui")
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "AutoMoveUI"
@@ -50,10 +53,13 @@ toggleButton.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
 toggleButton.TextColor3 = Color3.new(1, 1, 1)
 toggleButton.Parent = frame
 
--- Movement variables
+---
+## Movement Logic
+---
+
 local isRunning = false
 local currentTarget = "B"
-local teleportSpeed = 85
+local teleportSpeed = 850 -- Now 10x the previous speed (85 * 10)
 local teleportDistance = 0.05
 
 local connection = nil
@@ -86,9 +92,9 @@ local function onRenderStep(deltaTime)
             HumanoidRootPart.CFrame = CFrame.new(HumanoidRootPart.CFrame.Position) * lookAtCFrame.Rotation
         end
 
-        -- This is the line that was causing the error. The "if" check prevents it.
-        if promptRemoteEvent then
-            promptRemoteEvent:FireServer(HumanoidRootPart)
+        -- Call the HoldInputBegin function repeatedly
+        if prompt then
+            prompt:HoldInputBegin()
         end
     end
 end
@@ -104,6 +110,11 @@ toggleButton.MouseButton1Click:Connect(function()
     else
         toggleButton.Text = "START"
         toggleButton.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+        
+        -- Stop the HoldInput action when the script is turned off
+        if prompt then
+            prompt:HoldInputEnd()
+        end
         
         if connection then
             connection:Disconnect()
