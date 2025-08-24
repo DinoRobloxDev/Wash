@@ -45,51 +45,44 @@ toggleButton.Parent = frame
 
 -- Scripting the logic
 local isRunning = false
-local connection = nil
-
--- This function will make the character's body visible
-local function makeCharacterVisible()
-    for _, part in ipairs(Character:GetDescendants()) do
-        if part:IsA("BasePart") then
-            -- Set LocalTransparencyModifier to 0 to make the part fully opaque
-            part.LocalTransparencyModifier = 0
-        end
-    end
-end
+local currentTarget = "B" -- Start by moving to point B first
 
 local function onRenderStep()
     if isRunning then
-        -- Move the character super fast
-        local currentPos = HumanoidRootPart.Position
-        local targetPos = (currentPos.X == pointA.X) and pointB or pointA
-        
-        -- Use CFrame for instant teleportation
-        HumanoidRootPart.CFrame = CFrame.new(targetPos)
-
         -- Spam the 'E' key at a super fast rate
         UserInputService:SimulateKeyPress(Enum.KeyCode.E)
-        
-        -- Call the function to ensure visibility every frame
-        makeCharacterVisible()
     end
 end
 
 toggleButton.MouseButton1Click:Connect(function()
     isRunning = not isRunning
     if isRunning then
-        -- Move the character to the starting point before starting the loop
+        -- Move the character to the starting point
         HumanoidRootPart.CFrame = CFrame.new(pointA)
-        
+
         toggleButton.Text = "STOP"
         toggleButton.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
-        connection = RunService.RenderStepped:Connect(onRenderStep)
+
+        -- Start the continuous action
+        RunService.RenderStepped:Connect(onRenderStep)
+
+        -- Start the walk loop
+        while isRunning do
+            local targetPosition = (currentTarget == "A") and pointA or pointB
+            Humanoid:MoveTo(targetPosition)
+
+            -- Wait for the humanoid to reach the target before switching
+            Humanoid.MoveToFinished:Wait()
+
+            -- Switch targets
+            currentTarget = (currentTarget == "A") and "B" or "A"
+        end
     else
         toggleButton.Text = "START"
         toggleButton.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
-        if connection then
-            connection:Disconnect()
-            connection = nil
-        end
+        
+        -- Stop the humanoid from moving and disconnect the spam loop
+        Humanoid:MoveTo(HumanoidRootPart.Position)
     end
 end)
 
