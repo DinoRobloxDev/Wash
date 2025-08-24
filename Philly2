@@ -19,10 +19,7 @@ end
 local pointA = Vector3.new(2454.063720703125, 285.8049621532031, -1341.2506103515626)
 local pointB = Vector3.new(2473.269775390625, 285.8037414550781, -1341.27783203125)
 
----
-## UI Creation
----
-
+-- UI Creation
 local playerGui = LocalPlayer:WaitForChild("PlayerGui")
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "AutoMoveUI"
@@ -53,13 +50,10 @@ toggleButton.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
 toggleButton.TextColor3 = Color3.new(1, 1, 1)
 toggleButton.Parent = frame
 
----
-## Movement Logic
----
-
+-- Movement variables
 local isRunning = false
 local currentTarget = "B"
-local teleportSpeed = 850 -- Now 10x the previous speed (85 * 10)
+local teleportSpeed = 850
 local teleportDistance = 0.05
 
 local connection = nil
