@@ -21,27 +21,27 @@ local promptRemoteEvent = ReplicatedStorage:FindFirstChild("interactionFunction"
 -- UI Creation
 local win = DiscordLib:Window("Instant Wash")
 local moneyServer = win:Server("Money", "")
-local moneyChannel = moneyServer:Channel("Automation")
+local moneyChannel = moneyChannel:Channel("Automation")
 
-local prompts = {}
-local originalProperties = {}
+local interactables = {}
 
--- A function to find and store the prompts based on the provided hierarchy.
-local function findWashers()
-    prompts = {}
+-- A function to find and store the interactable objects.
+local function findInteractables()
+    interactables = {}
     for _, descendant in ipairs(Workspace:GetDescendants()) do
-        if descendant and descendant:IsA("ProximityPrompt") then
-            local parent = descendant.Parent
-            local grandparent = parent and parent.Parent
-            if parent and parent.Name == "Interaction" and grandparent and grandparent.Name == "WashingMachine" then
-                table.insert(prompts, descendant)
-                -- Store original properties
-                originalProperties[descendant] = {
-                    MaxActivationDistance = descendant.MaxActivationDistance,
-                    RequiresLineOfSight = descendant.RequiresLineOfSight,
-                    Enabled = descendant.Enabled,
-                    Style = descendant.Style
-                }
+        local parent = descendant.Parent
+        local grandparent = parent and parent.Parent
+        
+        if grandparent and grandparent.Name == "WashingMachine" then
+            -- Check for ProximityPrompt
+            if descendant:IsA("ProximityPrompt") then
+                table.insert(interactables, descendant)
+                -- Check for ClickDetector
+            elseif descendant:IsA("ClickDetector") then
+                table.insert(interactables, descendant)
+                -- Check for a Part that might be used for 'Touched' events
+            elseif descendant:IsA("Part") and (descendant.Name == "Interaction" or descendant.Name == "ClickPart") then
+                table.insert(interactables, descendant)
             end
         end
     end
@@ -49,57 +49,36 @@ end
 
 -- Toggle to make prompts visible
 moneyChannel:Toggle("Show Prompts", false, function(value)
-    if #prompts == 0 then
-        findWashers()
+    if #interactables == 0 then
+        findInteractables()
     end
     
-    if #prompts > 0 then
-        for _, prompt in ipairs(prompts) do
-            if value then
-                prompt.MaxActivationDistance = math.huge
-                prompt.RequiresLineOfSight = false
-                prompt.Enabled = true
-                prompt.Style = Enum.ProximityPromptStyle.Custom
-            else
-                local origProps = originalProperties[prompt]
-                if origProps then
-                    prompt.MaxActivationDistance = origProps.MaxActivationDistance
-                    prompt.RequiresLineOfSight = origProps.RequiresLineOfSight
-                    prompt.Enabled = origProps.Enabled
-                    prompt.Style = origProps.Style
+    if #interactables > 0 then
+        for _, interactable in ipairs(interactables) do
+            if interactable:IsA("ProximityPrompt") then
+                if value then
+                    interactable.MaxActivationDistance = math.huge
+                    interactable.RequiresLineOfSight = false
+                    interactable.Enabled = true
+                    interactable.Style = Enum.ProximityPromptStyle.Custom
+                else
+                    -- We'll just revert the changes, a full revert requires storing original props
+                    interactable.MaxActivationDistance = 10
+                    interactable.RequiresLineOfSight = true
+                    interactable.Enabled = false
+                    interactable.Style = Enum.ProximityPromptStyle.Default
                 end
             end
         end
         DiscordLib:Notification("Success", "Prompt visibility toggled!", "Okay!")
     else
-        DiscordLib:Notification("Error", "No washing machine prompts found.", "Okay!")
+        DiscordLib:Notification("Error", "No washing machine interactables found.", "Okay!")
     end
-end)
-
--- NEW BUTTON: Force All UI to Appear
-moneyChannel:Button("Force All UI", function()
-    local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
-    local count = 0
-    
-    for _, gui in ipairs(playerGui:GetChildren()) do
-        if gui:IsA("ScreenGui") then
-            gui.Enabled = true
-            -- Also set all child frames/elements to visible
-            for _, child in ipairs(gui:GetDescendants()) do
-                if child:IsA("Frame") or child:IsA("ImageLabel") or child:IsA("TextLabel") or child:IsA("TextButton") or child:IsA("ImageButton") then
-                    child.Visible = true
-                    count = count + 1
-                end
-            end
-        end
-    end
-    
-    DiscordLib:Notification("Success", "Forced " .. count .. " UI elements to appear!", "Okay!")
 end)
 
 moneyChannel:Button("Instant Wash", function()
-    if #prompts == 0 then
-        findWashers()
+    if #interactables == 0 then
+        findInteractables()
     end
     
     if not promptRemoteEvent then
@@ -107,24 +86,23 @@ moneyChannel:Button("Instant Wash", function()
         return
     end
     
-    if #prompts > 0 then
-        local foundPrompts = {}
-        for _, prompt in ipairs(prompts) do
-            if (HumanoidRootPart.Position - prompt.Parent.Position).Magnitude <= 200 then
-                table.insert(foundPrompts, prompt)
+    if #interactables > 0 then
+        local interactedCount = 0
+        for _, interactable in ipairs(interactables) do
+            if (HumanoidRootPart.Position - interactable.Parent.Position).Magnitude <= 200 then
+                -- Fire the remote with the correct object
+                promptRemoteEvent:FireServer(interactable)
+                interactedCount = interactedCount + 1
             end
         end
         
-        if #foundPrompts > 0 then
-            for _, prompt in ipairs(foundPrompts) do
-                promptRemoteEvent:FireServer(prompt)
-            end
-            DiscordLib:Notification("Success", "Interacted with " .. #foundPrompts .. " prompts!", "Okay!")
+        if interactedCount > 0 then
+            DiscordLib:Notification("Success", "Interacted with " .. interactedCount .. " objects!", "Okay!")
         else
-            DiscordLib:Notification("Error", "No prompts found within 200 studs.", "Okay!")
+            DiscordLib:Notification("Error", "No interactables found within 200 studs.", "Okay!")
         end
     else
-        DiscordLib:Notification("Error", "No washing machine prompts found.", "Okay!")
+        DiscordLib:Notification("Error", "No washing machine interactables found.", "Okay!")
     end
 end)
 
