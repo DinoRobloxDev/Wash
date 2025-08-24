@@ -40,11 +40,14 @@ moneyChannel:Button("Instant Wash", function()
     local originalPosition = humanoidRootPart.Position
     local prompts = {}
     
-    for _, descendant in ipairs(Workspace:GetDescendants()) do
-        if descendant and descendant:IsA("ProximityPrompt") then
-            local textLabel = descendant.Parent:FindFirstChildOfClass("TextLabel")
-            if textLabel and string.lower(textLabel.Text) == "wash money..." then
-                table.insert(prompts, descendant)
+    for _, washer in ipairs(Workspace:GetDescendants()) do
+        if washer and washer.Name == "WashingMachine" then
+            local interactionPart = washer:FindFirstChild("Interaction")
+            if interactionPart then
+                local prompt = interactionPart:FindFirstChildOfClass("ProximityPrompt")
+                if prompt then
+                    table.insert(prompts, prompt)
+                end
             end
         end
     end
