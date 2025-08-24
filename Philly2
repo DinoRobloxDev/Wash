@@ -8,10 +8,10 @@ local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
 
--- Find the "prompt" object using your corrected path.
-local prompt = Workspace:WaitForChild("WashingMachine"):WaitForChild("Interaction"):WaitForChild("prompt")
+-- Find the "prompt" object using the mixed method.
+local prompt = Workspace:WaitForChild("WashingMachine").Interaction.prompt
 if not prompt then
-    warn("The 'prompt' object was not found. Please check the hierarchy again.")
+    warn("The 'prompt' object was not found, as the children may not have loaded.")
 end
 
 -- Coordinates for the fast movement
@@ -54,8 +54,8 @@ local isRunning = false
 local currentTarget = "B"
 local teleportSpeed = 850
 local teleportDistance = 0.05
-local moveCounter = 0 -- NEW: Counter for back-and-forth movements
-local maxCycles = 10 -- NEW: How many times to go back and forth
+local moveCounter = 0
+local maxCycles = 10
 
 local connection = nil
 
@@ -75,57 +75,47 @@ local function onRenderStep(deltaTime)
         
         -- Check if we're close enough to switch points
         if distance < teleportDistance * 2 then
-            -- NEW: If we just finished a full cycle (from B to A), increment the counter
             if currentTarget == "A" then
                 moveCounter = moveCounter + 1
             end
             
-            -- Switch targets
             currentTarget = (currentTarget == "A") and "B" or "A"
             HumanoidRootPart.CFrame = CFrame.new(targetPosition)
 
-            -- NEW: Check if the cycle count has been reached
             if moveCounter >= maxCycles then
-                -- Generate a random location
                 local randomX = math.random(-5000, 5000)
-                local randomY = 200 -- Keep a consistent height to avoid falling
+                local randomY = 200
                 local randomZ = math.random(-5000, 5000)
                 local newCFrame = CFrame.new(randomX, randomY, randomZ)
                 
-                -- Teleport the character instantly
                 HumanoidRootPart.CFrame = newCFrame
 
-                -- Reset script state and stop movement
                 moveCounter = 0
                 isRunning = false
                 toggleButton.Text = "START"
                 toggleButton.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
                 
-                -- Stop the RunService loop
                 if connection then
                     connection:Disconnect()
                     connection = nil
                 end
                 
-                -- Also make sure to stop the HoldInput action
                 if prompt then
-                    prompt:HoldInputEnd()
+                    prompt:HoldInputEnd(LocalPlayer)
                 end
                 
-                return -- Exit the function early to prevent further movement
+                return
             end
         else
             local moveVector = normalizedDirection * teleportDistance * teleportSpeed * deltaTime
             HumanoidRootPart.CFrame = HumanoidRootPart.CFrame + moveVector
             
-            -- Rotate the character to face the direction of movement
             local lookAtCFrame = CFrame.lookAt(HumanoidRootPart.Position, HumanoidRootPart.Position + normalizedDirection)
             HumanoidRootPart.CFrame = CFrame.new(HumanoidRootPart.CFrame.Position) * lookAtCFrame.Rotation
         end
 
-        -- Call the HoldInputBegin function repeatedly
         if prompt then
-            prompt:HoldInputBegin()
+            prompt:HoldInputBegin(LocalPlayer)
         end
     end
 end
@@ -142,9 +132,8 @@ toggleButton.MouseButton1Click:Connect(function()
         toggleButton.Text = "START"
         toggleButton.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
         
-        -- Stop the HoldInput action when the script is turned off
         if prompt then
-            prompt:HoldInputEnd()
+            prompt:HoldInputEnd(LocalPlayer)
         end
         
         if connection then
