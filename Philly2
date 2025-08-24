@@ -1,23 +1,46 @@
+-- Services
 local Players = game:GetService("Players")
-local player = Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local rootPart = character:WaitForChild("HumanoidRootPart")
+local RunService = game:GetService("RunService")
+local ProximityPromptService = game:GetService("ProximityPromptService")
+local Workspace = game:GetService("Workspace")
 
-local MAX_DISTANCE = 10000 -- Far enough so you can always interact
+-- Configuration
+local INTERACTION_RADIUS = 650
+local IGNORE_HOLD_PROMPTS = true -- Set to true to ignore prompts that require holding
+local MIN_HOLD_DURATION = 0.5 -- Only affects if IGNORE_HOLD_PROMPTS is false
 
-local function enableAllWashingMachinePrompts()
-    for _, wm in ipairs(workspace:GetDescendants()) do
-        if wm.Name == "WashingMachine" and wm:FindFirstChild("Interaction") then
-            local interaction = wm.Interaction
-            local prompt = interaction:FindFirstChildOfClass("ProximityPrompt")
-            if prompt then
-                prompt.MaxActivationDistance = MAX_DISTANCE
-                prompt.RequiresLineOfSight = false
-                print("WashingMachine prompt updated:", wm:GetFullName())
+-- Variables
+local localPlayer = Players.LocalPlayer
+local character = localPlayer.Character or localPlayer.CharacterAdded:Wait()
+local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+
+-- Main Loop
+RunService.RenderStepped:Connect(function()
+    -- Get all ProximityPrompts in the game
+    local allPrompts = ProximityPromptService:GetChildren()
+
+    -- Check each prompt
+    for _, prompt in ipairs(allPrompts) do
+        -- Make sure the prompt is active and has a parent
+        if prompt and prompt.Parent and prompt:IsA("ProximityPrompt") then
+            -- Check if we should ignore hold prompts
+            if IGNORE_HOLD_PROMPTS and prompt.HoldDuration > 0 then
+                continue
+            end
+
+            -- Calculate distance from player to the prompt's parent part
+            local distance = (humanoidRootPart.Position - prompt.Parent.Position).Magnitude
+
+            -- If the prompt is within the specified radius
+            if distance <= INTERACTION_RADIUS then
+                -- Check if the prompt is not a hold prompt or if its duration is short enough
+                if prompt.HoldDuration == 0 or (prompt.HoldDuration > 0 and prompt.HoldDuration <= MIN_HOLD_DURATION) then
+                    -- Trigger the prompt
+                    prompt:Trigger()
+                end
             end
         end
     end
-end
+end)
 
--- Run once
-enableAllWashingMachinePrompts()
+print("ProximityPrompt auto-interact script loaded. Activating prompts within " .. INTERACTION_RADIUS .. " studs. 🤖")
