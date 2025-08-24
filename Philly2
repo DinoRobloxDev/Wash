@@ -47,6 +47,16 @@ toggleButton.Parent = frame
 local isRunning = false
 local connection = nil
 
+-- This function will make the character's body visible
+local function makeCharacterVisible()
+    for _, part in ipairs(Character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            -- Set LocalTransparencyModifier to 0 to make the part fully opaque
+            part.LocalTransparencyModifier = 0
+        end
+    end
+end
+
 local function onRenderStep()
     if isRunning then
         -- Move the character super fast
@@ -58,6 +68,9 @@ local function onRenderStep()
 
         -- Spam the 'E' key at a super fast rate
         UserInputService:SimulateKeyPress(Enum.KeyCode.E)
+        
+        -- Call the function to ensure visibility every frame
+        makeCharacterVisible()
     end
 end
 
