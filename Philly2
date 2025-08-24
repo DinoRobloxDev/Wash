@@ -1,99 +1,87 @@
 -- Services
-local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
 
 -- Variables
 local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
-local Humanoid = Character:WaitForChild("Humanoid")
 
--- The RemoteEvent you found. This must be the correct path.
-local promptRemoteEvent = ReplicatedStorage:FindFirstChild("interactionFunction")
-
--- Coordinates for the fast movement
-local pointA = Vector3.new(2454.063720703125, 285.8049621582031, -1341.2506103515626)
-local pointB = Vector3.new(2473.269775390625, 285.8037414550781, -1341.27783203125)
-
--- UI Creation
+-- UI elements (assuming your UI is created elsewhere)
 local playerGui = LocalPlayer:WaitForChild("PlayerGui")
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "AutoMoveUI"
-screenGui.Parent = playerGui
+local screenGui = playerGui:FindFirstChild("AutoMoveUI")
+local toggleButton = screenGui and screenGui:FindFirstChild("Frame") and screenGui.Frame:FindFirstChild("ToggleButton")
 
-local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 200, 0, 80)
-frame.Position = UDim2.new(0.5, -100, 0.5, -40)
-frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-frame.BorderColor3 = Color3.fromRGB(20, 20, 20)
-frame.Draggable = true
-frame.Parent = screenGui
+if not screenGui or not toggleButton then
+    warn("UI not found! Please ensure the UI creation code is present.")
+    return
+end
 
-local title = Instance.new("TextLabel")
-title.Text = "Super Speed"
-title.Size = UDim2.new(1, 0, 0, 25)
-title.Position = UDim2.new(0, 0, 0, 0)
-title.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-title.TextColor3 = Color3.new(1, 1, 1)
-title.Parent = frame
+-- Coordinates for the movement
+local startPoint = Vector3.new(2454.063720703125, 285.8049621582031, -1341.2506103515626)
+local endPoint = Vector3.new(2473.269775390625, 285.8037414550781, -1341.27783203125)
 
-local toggleButton = Instance.new("TextButton")
-toggleButton.Text = "START"
-toggleButton.Size = UDim2.new(0.9, 0, 0, 40)
-toggleButton.Position = UDim2.new(0.05, 0, 0.4, 0)
-toggleButton.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
-toggleButton.TextColor3 = Color3.new(1, 1, 1)
-toggleButton.Parent = frame
-
--- Scripting the logic
+-- Movement variables
 local isRunning = false
 local currentTarget = "B"
-local originalWalkSpeed = Humanoid.WalkSpeed
+local teleportSpeed = 85 -- The speed you requested
+local teleportDistance = 0.05 -- The distance per step you requested
 
-local function onRenderStep()
+local connection = nil
+
+local function onRenderStep(deltaTime)
     if isRunning then
         local targetPosition
         if currentTarget == "A" then
-            targetPosition = pointA
+            targetPosition = startPoint
         else
-            targetPosition = pointB
+            targetPosition = endPoint
         end
 
-        local direction = (targetPosition - HumanoidRootPart.Position).Unit
+        local currentPosition = HumanoidRootPart.Position
+        local direction = (targetPosition - currentPosition)
+        local distance = direction.Magnitude
+        local normalizedDirection = direction.Unit
         
-        -- Use Humanoid.WalkSpeed to move the character at a high rate
-        Humanoid.WalkSpeed = 100 
-        Humanoid:MoveTo(targetPosition)
-
-        -- If the character is close to the target, switch to the other point
-        if (HumanoidRootPart.Position - targetPosition).Magnitude < 2 then
+        -- Check if we're close enough to switch points
+        if distance < teleportDistance * 2 then
+            -- Switch targets
             currentTarget = (currentTarget == "A") and "B" or "A"
+            -- Optional: Teleport directly to the next point to avoid getting stuck
+            HumanoidRootPart.CFrame = CFrame.new(targetPosition)
+        else
+            -- Calculate the desired movement for this frame
+            local moveVector = normalizedDirection * teleportDistance * teleportSpeed * deltaTime
+            
+            -- Apply the small teleport
+            HumanoidRootPart.CFrame = HumanoidRootPart.CFrame + moveVector
+            
+            -- Rotate the character to face the direction of movement
+            local lookAtCFrame = CFrame.lookAt(HumanoidRootPart.Position, HumanoidRootPart.Position + normalizedDirection)
+            HumanoidRootPart.CFrame = CFrame.new(HumanoidRootPart.CFrame.Position) * lookAtCFrame.Rotation
         end
-
-        -- Spam the RemoteEvent to simulate the E key press
-        promptRemoteEvent:FireServer(HumanoidRootPart)
     end
 end
 
 toggleButton.MouseButton1Click:Connect(function()
     isRunning = not isRunning
     if isRunning then
-        HumanoidRootPart.CFrame = CFrame.new(pointA)
-        
         toggleButton.Text = "STOP"
         toggleButton.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
-
-        RunService.RenderStepped:Connect(onRenderStep)
+        
+        -- Teleport to the starting point and start the loop
+        HumanoidRootPart.CFrame = CFrame.new(startPoint)
+        connection = RunService.RenderStepped:Connect(onRenderStep)
     else
         toggleButton.Text = "START"
         toggleButton.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
         
-        -- Reset WalkSpeed and stop movement
-        Humanoid.WalkSpeed = originalWalkSpeed
-        Humanoid:MoveTo(HumanoidRootPart.Position)
+        -- Disconnect the loop
+        if connection then
+            connection:Disconnect()
+            connection = nil
+        end
     end
 end)
 
-print("Super Speed script loaded successfully.")
+print("Super Speed script (modified) loaded successfully.")
