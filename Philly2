@@ -4,67 +4,80 @@ local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
-local StarterGui = game:GetService("StarterGui")
 
 -- UI Library
 local DiscordLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/UI-Libs/main/discord%20lib.txt"))()
 
--- Universal Functions
-local LocalPlayer = Players.LocalPlayer
-local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-local Humanoid = Character:WaitForChild("Humanoid")
-local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
-local Camera = Workspace.CurrentCamera
-
 -- The RemoteEvent you found. This must be the correct path.
 local promptRemoteEvent = ReplicatedStorage:FindFirstChild("interactionFunction")
 
+-- Universal Functions
+local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+
+-- UI Creation
 local win = DiscordLib:Window("Instant Wash")
 local moneyServer = win:Server("Money", "")
 local moneyChannel = moneyServer:Channel("Automation")
 
-moneyChannel:Button("Instant Wash", function()
-    local character = LocalPlayer.Character
-    if not character or not character:FindFirstChild("HumanoidRootPart") then
-        DiscordLib:Notification("Error", "Character not found!", "Okay!")
-        return
-    end
+local prompts = {}
 
+-- A function to find and store the prompts. This is a good practice to avoid
+-- repeated searches.
+local function findWashers()
+    prompts = {}
+    for _, descendant in ipairs(Workspace:GetDescendants()) do
+        if descendant and descendant:IsA("ProximityPrompt") then
+            if descendant.Parent and descendant.Parent:IsA("Part") and descendant.Parent:FindFirstChildOfClass("TextLabel") and string.lower(descendant.Parent:FindFirstChildOfClass("TextLabel").Text) == "wash money..." then
+                table.insert(prompts, descendant)
+            end
+        end
+    end
+end
+
+-- Toggle to make prompts visible
+moneyChannel:Toggle("Show Prompts", false, function(value)
+    if #prompts == 0 then
+        findWashers()
+    end
+    
+    if #prompts > 0 then
+        for _, prompt in ipairs(prompts) do
+            prompt.Enabled = value
+        end
+        DiscordLib:Notification("Success", "Prompt visibility toggled!", "Okay!")
+    else
+        DiscordLib:Notification("Error", "No washing machine prompts found.", "Okay!")
+    end
+end)
+
+moneyChannel:Button("Instant Wash", function()
+    if #prompts == 0 then
+        findWashers()
+    end
+    
     if not promptRemoteEvent then
         DiscordLib:Notification("Error", "Interaction remote not found!", "Okay!")
         return
     end
     
-    local humanoidRootPart = character.HumanoidRootPart
-    local originalPosition = humanoidRootPart.Position
-    local prompts = {}
-    
-    for _, washer in ipairs(Workspace:GetDescendants()) do
-        if washer and washer.Name == "WashingMachine" then
-            local interactionPart = washer:FindFirstChild("Interaction")
-            if interactionPart then
-                local prompt = interactionPart:FindFirstChildOfClass("ProximityPrompt")
-                if prompt then
-                    table.insert(prompts, prompt)
-                end
+    if #prompts > 0 then
+        local foundPrompts = {}
+        for _, prompt in ipairs(prompts) do
+            if (HumanoidRootPart.Position - prompt.Parent.Position).Magnitude <= 200 then
+                table.insert(foundPrompts, prompt)
             end
         end
-    end
-    
-    if #prompts > 0 then
-        local function firePrompt(prompt)
-            humanoidRootPart.CFrame = CFrame.new(prompt.Parent.Position + Vector3.new(0, 5, 0))
-            promptRemoteEvent:FireServer(prompt)
-        end
         
-        for _, prompt in ipairs(prompts) do
-            firePrompt(prompt)
-            task.wait(0.05) -- A small delay to avoid overwhelming the server
+        if #foundPrompts > 0 then
+            for _, prompt in ipairs(foundPrompts) do
+                promptRemoteEvent:FireServer(prompt)
+            end
+            DiscordLib:Notification("Success", "Interacted with " .. #foundPrompts .. " prompts!", "Okay!")
+        else
+            DiscordLib:Notification("Error", "No prompts found within 200 studs.", "Okay!")
         end
-        
-        humanoidRootPart.CFrame = CFrame.new(originalPosition)
-        DiscordLib:Notification("Success", "All washers interacted with!", "Okay!")
     else
         DiscordLib:Notification("Error", "No washing machine prompts found.", "Okay!")
     end
