@@ -50,7 +50,8 @@ moneyChannel:Button("Instant Wash", function()
     
     if #prompts > 0 then
         local function firePrompt(prompt)
-            humanoidRootPart.CFrame = CFrame.new(prompt.Parent.Position)
+            -- Teleport to the washer, adding a vertical offset to prevent clipping
+            humanoidRootPart.CFrame = CFrame.new(prompt.Parent.Position + Vector3.new(0, 5, 0))
             promptRemoteEvent:FireServer(prompt)
         end
         
