@@ -21,7 +21,9 @@ local promptRemoteEvent = ReplicatedStorage:FindFirstChild("interactionFunction"
 -- UI Creation
 local win = DiscordLib:Window("Instant Wash")
 local moneyServer = win:Server("Money", "")
-local moneyChannel = moneyChannel:Channel("Automation")
+
+-- FIX: Corrected the variable name here. It should be using 'moneyServer'
+local moneyChannel = moneyServer:Channel("Automation")
 
 local interactables = {}
 
