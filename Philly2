@@ -1,13 +1,17 @@
 -- Services
 local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Variables
 local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
 local Humanoid = Character:WaitForChild("Humanoid")
+
+-- The RemoteEvent you found. This must be the correct path.
+local promptRemoteEvent = ReplicatedStorage:FindFirstChild("interactionFunction")
 
 -- Coordinates for the fast movement
 local pointA = Vector3.new(2454.063720703125, 285.8049621582031, -1341.2506103515626)
@@ -45,43 +49,49 @@ toggleButton.Parent = frame
 
 -- Scripting the logic
 local isRunning = false
-local currentTarget = "B" -- Start by moving to point B first
+local currentTarget = "B"
+local originalWalkSpeed = Humanoid.WalkSpeed
 
 local function onRenderStep()
     if isRunning then
-        -- Spam the 'E' key at a super fast rate
-        UserInputService:SimulateKeyPress(Enum.KeyCode.E)
+        local targetPosition
+        if currentTarget == "A" then
+            targetPosition = pointA
+        else
+            targetPosition = pointB
+        end
+
+        local direction = (targetPosition - HumanoidRootPart.Position).Unit
+        
+        -- Use Humanoid.WalkSpeed to move the character at a high rate
+        Humanoid.WalkSpeed = 100 
+        Humanoid:MoveTo(targetPosition)
+
+        -- If the character is close to the target, switch to the other point
+        if (HumanoidRootPart.Position - targetPosition).Magnitude < 2 then
+            currentTarget = (currentTarget == "A") and "B" or "A"
+        end
+
+        -- Spam the RemoteEvent to simulate the E key press
+        promptRemoteEvent:FireServer(HumanoidRootPart)
     end
 end
 
 toggleButton.MouseButton1Click:Connect(function()
     isRunning = not isRunning
     if isRunning then
-        -- Move the character to the starting point
         HumanoidRootPart.CFrame = CFrame.new(pointA)
-
+        
         toggleButton.Text = "STOP"
         toggleButton.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
 
-        -- Start the continuous action
         RunService.RenderStepped:Connect(onRenderStep)
-
-        -- Start the walk loop
-        while isRunning do
-            local targetPosition = (currentTarget == "A") and pointA or pointB
-            Humanoid:MoveTo(targetPosition)
-
-            -- Wait for the humanoid to reach the target before switching
-            Humanoid.MoveToFinished:Wait()
-
-            -- Switch targets
-            currentTarget = (currentTarget == "A") and "B" or "A"
-        end
     else
         toggleButton.Text = "START"
         toggleButton.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
         
-        -- Stop the humanoid from moving and disconnect the spam loop
+        -- Reset WalkSpeed and stop movement
+        Humanoid.WalkSpeed = originalWalkSpeed
         Humanoid:MoveTo(HumanoidRootPart.Position)
     end
 end)
