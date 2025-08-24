@@ -1,105 +1,120 @@
 -- Services
 local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local ProximityPromptService = game:GetService("ProximityPromptService")
-local Workspace = game:GetService("Workspace")
-
--- Configuration
-local INTERACTION_RADIUS = 650
-local IGNORE_HOLD_PROMPTS = true
-local MIN_HOLD_DURATION = 0.5
+local HttpService = game:GetService("HttpService")
 
 -- Variables
 local localPlayer = Players.LocalPlayer
-local character = localPlayer.Character or localPlayer.CharacterAdded:Wait()
-local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
-local activeUIs = {}
+local coordinatesTable = {}
+local markersFolder = Instance.new("Folder")
+markersFolder.Name = "CoordinateMarkers"
+markersFolder.Parent = game.Workspace
 
--- UI Template (Create this once to avoid performance issues)
-local promptGuiTemplate = Instance.new("BillboardGui")
-promptGuiTemplate.Size = UDim2.new(5, 0, 1, 0)
-promptGuiTemplate.ExtentsOffset = Vector3.new(0, 5, 0) -- Adjust to move UI above the part
-promptGuiTemplate.AlwaysOnTop = true
-promptGuiTemplate.ZIndex = 10
-promptGuiTemplate.LightInfluence = 0.5
-promptGuiTemplate.StudsOffset = Vector3.new(0, 10, 0) -- Adjust vertical offset
+-- UI Creation
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "CoordinateLoggerUI"
+screenGui.Parent = localPlayer:WaitForChild("PlayerGui")
 
-local promptTextLabel = Instance.new("TextLabel")
-promptTextLabel.Size = UDim2.new(1, 0, 1, 0)
-promptTextLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-promptTextLabel.BackgroundTransparency = 0.5
-promptTextLabel.BorderSizePixel = 0
-promptTextLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-promptTextLabel.Font = Enum.Font.SourceSansBold
-promptTextLabel.TextSize = 16
-promptTextLabel.TextScaled = true
-promptTextLabel.Parent = promptGuiTemplate
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 200, 0, 100)
+mainFrame.Position = UDim2.new(0, 10, 0, 10)
+mainFrame.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+mainFrame.BorderSizePixel = 0
+mainFrame.Parent = screenGui
 
--- Main Loop
-RunService.RenderStepped:Connect(function()
-    -- Get all ProximityPrompts in the game
-    local allPrompts = ProximityPromptService:GetChildren()
-    local promptsInRadius = {}
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Text = "Coordinate Logger"
+titleLabel.Size = UDim2.new(1, 0, 0, 20)
+titleLabel.Position = UDim2.new(0, 0, 0, 0)
+titleLabel.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
+titleLabel.TextColor3 = Color3.new(1, 1, 1)
+titleLabel.Font = Enum.Font.SourceSansBold
+titleLabel.Parent = mainFrame
 
-    -- Find prompts in radius and trigger them
-    for _, prompt in ipairs(allPrompts) do
-        -- Check if the prompt is valid and visible
-        if prompt and prompt.Parent and prompt:IsA("ProximityPrompt") then
-            -- Get character's position
-            if not humanoidRootPart or not humanoidRootPart.Parent then continue end
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Text = "No coordinates recorded."
+statusLabel.Size = UDim2.new(1, 0, 0, 20)
+statusLabel.Position = UDim2.new(0, 0, 0, 20)
+statusLabel.TextColor3 = Color3.new(1, 1, 1)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Font = Enum.Font.SourceSans
+statusLabel.Parent = mainFrame
 
-            local distance = (humanoidRootPart.Position - prompt.Parent.Position).Magnitude
+local placeMarkerButton = Instance.new("TextButton")
+placeMarkerButton.Text = "Place Marker"
+placeMarkerButton.Size = UDim2.new(1, -10, 0, 30)
+placeMarkerButton.Position = UDim2.new(0, 5, 0, 45)
+placeMarkerButton.BackgroundColor3 = Color3.new(0.3, 0.6, 0.9)
+placeMarkerButton.TextColor3 = Color3.new(1, 1, 1)
+placeMarkerButton.Font = Enum.Font.SourceSansBold
+placeMarkerButton.Parent = mainFrame
 
-            if distance <= INTERACTION_RADIUS then
-                table.insert(promptsInRadius, prompt)
+local downloadButton = Instance.new("TextButton")
+downloadButton.Text = "Download"
+downloadButton.Size = UDim2.new(1, -10, 0, 30)
+downloadButton.Position = UDim2.new(0, 5, 0, 80)
+downloadButton.BackgroundColor3 = Color3.new(0.2, 0.8, 0.4)
+downloadButton.TextColor3 = Color3.new(1, 1, 1)
+downloadButton.Font = Enum.Font.SourceSansBold
+downloadButton.Parent = mainFrame
 
-                -- Check if we should ignore hold prompts
-                if IGNORE_HOLD_PROMPTS and prompt.HoldDuration > 0 then
-                    continue
-                end
+local function createMarker(position)
+    local part = Instance.new("Part")
+    part.Name = "CoordinateMarker"
+    part.Anchored = true
+    part.CanCollide = false
+    part.Size = Vector3.new(2, 2, 2)
+    part.Shape = Enum.PartType.Sphere
+    part.Material = Enum.Material.Neon
+    part.Color = Color3.new(1, 0, 0) -- Red color
+    part.Position = position
+    part.Parent = markersFolder
+end
 
-                -- Trigger the prompt
-                if prompt.HoldDuration == 0 or (prompt.HoldDuration > 0 and prompt.HoldDuration <= MIN_HOLD_DURATION) then
-                    prompt:Trigger()
-                end
-            end
-        end
-    end
+local function updateStatus()
+    statusLabel.Text = "Recorded " .. #coordinatesTable .. " coordinates."
+end
 
-    -- Update UI for prompts in radius and clean up old ones
-    for _, prompt in ipairs(allPrompts) do
-        if table.find(promptsInRadius, prompt) then
-            -- Prompt is in range, make sure its UI is visible
-            if not activeUIs[prompt] then
-                -- Create a new UI if it doesn't exist
-                local newGui = promptGuiTemplate:Clone()
-                newGui.Parent = prompt.Parent
-                newGui.Adornee = prompt.Parent
-                activeUIs[prompt] = newGui
-            end
-            
-            -- Update the text and make it visible
-            local promptGui = activeUIs[prompt]
-            local textLabel = promptGui:FindFirstChildOfClass("TextLabel")
-            if textLabel then
-                textLabel.Text = string.format("%s (%.1f)", prompt.ObjectText or "Prompt", (humanoidRootPart.Position - prompt.Parent.Position).Magnitude)
-            end
-            promptGui.Enabled = true
-        else
-            -- Prompt is out of range, hide its UI
-            if activeUIs[prompt] then
-                activeUIs[prompt].Enabled = false
-            end
-        end
+placeMarkerButton.MouseButton1Click:Connect(function()
+    local character = localPlayer.Character
+    if character and character:FindFirstChild("HumanoidRootPart") then
+        local humanoidRootPart = character.HumanoidRootPart
+        local position = humanoidRootPart.Position
+        
+        table.insert(coordinatesTable, {
+            x = position.X,
+            y = position.Y,
+            z = position.Z
+        })
+        
+        createMarker(position)
+        updateStatus()
+        print("Coordinates recorded: " .. tostring(position))
+    else
+        print("Could not find character or HumanoidRootPart.")
     end
 end)
 
--- Clean up UIs when prompts are destroyed
-ProximityPromptService.ChildRemoved:Connect(function(child)
-    if activeUIs[child] then
-        activeUIs[child]:Destroy()
-        activeUIs[child] = nil
+downloadButton.MouseButton1Click:Connect(function()
+    if #coordinatesTable == 0 then
+        statusLabel.Text = "No coordinates to download."
+        return
+    end
+
+    local jsonString = HttpService:JSONEncode(coordinatesTable)
+    
+    if writefile then
+        writefile("coordinates.json", jsonString)
+        statusLabel.Text = "File downloaded successfully!"
+        print("Coordinates saved to coordinates.json")
+    else
+        statusLabel.Text = "writefile() not supported."
+        print("Error: writefile() is not supported by your executor.")
     end
 end)
 
-print("ProximityPrompt auto-interact and UI display script loaded. ðŸ¤–")
+-- Initial status update
+updateStatus()
+
+print("Coordinate logger script loaded. 🗺️")
