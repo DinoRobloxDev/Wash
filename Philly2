@@ -20,7 +20,6 @@ local promptGuiTemplate = Instance.new("BillboardGui")
 promptGuiTemplate.Size = UDim2.new(5, 0, 1, 0)
 promptGuiTemplate.ExtentsOffset = Vector3.new(0, 5, 0) -- Adjust to move UI above the part
 promptGuiTemplate.AlwaysOnTop = true
-promptGuiTemplate.ZIndex = 10
 promptGuiTemplate.LightInfluence = 0.5
 promptGuiTemplate.StudsOffset = Vector3.new(0, 10, 0) -- Adjust vertical offset
 
@@ -34,6 +33,9 @@ promptTextLabel.Font = Enum.Font.SourceSansBold
 promptTextLabel.TextSize = 16
 promptTextLabel.TextScaled = true
 promptTextLabel.Parent = promptGuiTemplate
+
+-- FIX: ZIndex is a property of the TextLabel, not the BillboardGui
+promptTextLabel.ZIndex = 10
 
 -- Main Loop
 RunService.RenderStepped:Connect(function()
