@@ -2,119 +2,82 @@
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local HttpService = game:GetService("HttpService")
 
 -- Variables
-local localPlayer = Players.LocalPlayer
-local coordinatesTable = {}
-local markersFolder = Instance.new("Folder")
-markersFolder.Name = "CoordinateMarkers"
-markersFolder.Parent = game.Workspace
+local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+local Humanoid = Character:WaitForChild("Humanoid")
+
+-- Coordinates for the fast movement
+local pointA = Vector3.new(2454.063720703125, 285.8049621582031, -1341.2506103515626)
+local pointB = Vector3.new(2473.269775390625, 285.8037414550781, -1341.27783203125)
 
 -- UI Creation
+local playerGui = LocalPlayer:WaitForChild("PlayerGui")
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "CoordinateLoggerUI"
-screenGui.Parent = localPlayer:WaitForChild("PlayerGui")
+screenGui.Name = "AutoMoveUI"
+screenGui.Parent = playerGui
 
-local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 200, 0, 100)
-mainFrame.Position = UDim2.new(0, 10, 0, 10)
-mainFrame.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
-mainFrame.BorderSizePixel = 0
-mainFrame.Parent = screenGui
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 200, 0, 80)
+frame.Position = UDim2.new(0.5, -100, 0.5, -40)
+frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+frame.BorderColor3 = Color3.fromRGB(20, 20, 20)
+frame.Draggable = true
+frame.Parent = screenGui
 
-local titleLabel = Instance.new("TextLabel")
-titleLabel.Text = "Coordinate Logger"
-titleLabel.Size = UDim2.new(1, 0, 0, 20)
-titleLabel.Position = UDim2.new(0, 0, 0, 0)
-titleLabel.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
-titleLabel.TextColor3 = Color3.new(1, 1, 1)
-titleLabel.Font = Enum.Font.SourceSansBold
-titleLabel.Parent = mainFrame
+local title = Instance.new("TextLabel")
+title.Text = "Super Speed"
+title.Size = UDim2.new(1, 0, 0, 25)
+title.Position = UDim2.new(0, 0, 0, 0)
+title.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+title.TextColor3 = Color3.new(1, 1, 1)
+title.Parent = frame
 
-local statusLabel = Instance.new("TextLabel")
-statusLabel.Text = "No coordinates recorded."
-statusLabel.Size = UDim2.new(1, 0, 0, 20)
-statusLabel.Position = UDim2.new(0, 0, 0, 20)
-statusLabel.TextColor3 = Color3.new(1, 1, 1)
-statusLabel.BackgroundTransparency = 1
-statusLabel.Font = Enum.Font.SourceSans
-statusLabel.Parent = mainFrame
+local toggleButton = Instance.new("TextButton")
+toggleButton.Text = "START"
+toggleButton.Size = UDim2.new(0.9, 0, 0, 40)
+toggleButton.Position = UDim2.new(0.05, 0, 0.4, 0)
+toggleButton.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+toggleButton.TextColor3 = Color3.new(1, 1, 1)
+toggleButton.Parent = frame
 
-local placeMarkerButton = Instance.new("TextButton")
-placeMarkerButton.Text = "Place Marker"
-placeMarkerButton.Size = UDim2.new(1, -10, 0, 30)
-placeMarkerButton.Position = UDim2.new(0, 5, 0, 45)
-placeMarkerButton.BackgroundColor3 = Color3.new(0.3, 0.6, 0.9)
-placeMarkerButton.TextColor3 = Color3.new(1, 1, 1)
-placeMarkerButton.Font = Enum.Font.SourceSansBold
-placeMarkerButton.Parent = mainFrame
+-- Scripting the logic
+local isRunning = false
+local connection = nil
 
-local downloadButton = Instance.new("TextButton")
-downloadButton.Text = "Download"
-downloadButton.Size = UDim2.new(1, -10, 0, 30)
-downloadButton.Position = UDim2.new(0, 5, 0, 80)
-downloadButton.BackgroundColor3 = Color3.new(0.2, 0.8, 0.4)
-downloadButton.TextColor3 = Color3.new(1, 1, 1)
-downloadButton.Font = Enum.Font.SourceSansBold
-downloadButton.Parent = mainFrame
+local function onRenderStep()
+    if isRunning then
+        -- Move the character super fast
+        local currentPos = HumanoidRootPart.Position
+        local targetPos = (currentPos.X == pointA.X) and pointB or pointA
+        
+        -- Use CFrame for instant teleportation
+        HumanoidRootPart.CFrame = CFrame.new(targetPos)
 
-local function createMarker(position)
-    local part = Instance.new("Part")
-    part.Name = "CoordinateMarker"
-    part.Anchored = true
-    part.CanCollide = false
-    part.Size = Vector3.new(2, 2, 2)
-    part.Shape = Enum.PartType.Sphere
-    part.Material = Enum.Material.Neon
-    part.Color = Color3.new(1, 0, 0) -- Red color
-    part.Position = position
-    part.Parent = markersFolder
+        -- Spam the 'E' key at a super fast rate
+        UserInputService:SimulateKeyPress(Enum.KeyCode.E)
+    end
 end
 
-local function updateStatus()
-    statusLabel.Text = "Recorded " .. #coordinatesTable .. " coordinates."
-end
-
-placeMarkerButton.MouseButton1Click:Connect(function()
-    local character = localPlayer.Character
-    if character and character:FindFirstChild("HumanoidRootPart") then
-        local humanoidRootPart = character.HumanoidRootPart
-        local position = humanoidRootPart.Position
+toggleButton.MouseButton1Click:Connect(function()
+    isRunning = not isRunning
+    if isRunning then
+        -- Move the character to the starting point before starting the loop
+        HumanoidRootPart.CFrame = CFrame.new(pointA)
         
-        table.insert(coordinatesTable, {
-            x = position.X,
-            y = position.Y,
-            z = position.Z
-        })
-        
-        createMarker(position)
-        updateStatus()
-        print("Coordinates recorded: " .. tostring(position))
+        toggleButton.Text = "STOP"
+        toggleButton.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+        connection = RunService.RenderStepped:Connect(onRenderStep)
     else
-        print("Could not find character or HumanoidRootPart.")
+        toggleButton.Text = "START"
+        toggleButton.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+        if connection then
+            connection:Disconnect()
+            connection = nil
+        end
     end
 end)
 
-downloadButton.MouseButton1Click:Connect(function()
-    if #coordinatesTable == 0 then
-        statusLabel.Text = "No coordinates to download."
-        return
-    end
-
-    local jsonString = HttpService:JSONEncode(coordinatesTable)
-    
-    if writefile then
-        writefile("coordinates.json", jsonString)
-        statusLabel.Text = "File downloaded successfully!"
-        print("Coordinates saved to coordinates.json")
-    else
-        statusLabel.Text = "writefile() not supported."
-        print("Error: writefile() is not supported by your executor.")
-    end
-end)
-
--- Initial status update
-updateStatus()
-
-print("Coordinate logger script loaded. 🗺️")
+print("Super Speed script loaded successfully.")
