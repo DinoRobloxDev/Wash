@@ -42,7 +42,8 @@ moneyChannel:Button("Instant Wash", function()
     
     for _, descendant in ipairs(Workspace:GetDescendants()) do
         if descendant and descendant:IsA("ProximityPrompt") then
-            if descendant.Parent and descendant.Parent:IsA("Part") and descendant.Parent:FindFirstChildOfClass("TextLabel") and descendant.Parent:FindFirstChildOfClass("TextLabel").Text == "wash money..." then
+            local textLabel = descendant.Parent:FindFirstChildOfClass("TextLabel")
+            if textLabel and string.lower(textLabel.Text) == "wash money..." then
                 table.insert(prompts, descendant)
             end
         end
