@@ -5,9 +5,6 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- UI Library
-local DiscordLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/UI-Libs/main/discord%20lib.txt"))()
-
 -- Universal Functions
 local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
@@ -18,14 +15,8 @@ local Camera = Workspace.CurrentCamera
 -- The RemoteEvent you found. This must be the correct path.
 local promptRemoteEvent = ReplicatedStorage:FindFirstChild("interactionFunction")
 
--- UI Creation
-local win = DiscordLib:Window("Instant Wash")
-local moneyServer = win:Server("Money", "")
-
--- FIX: Corrected the variable name here. It should be using 'moneyServer'
-local moneyChannel = moneyServer:Channel("Automation")
-
 local interactables = {}
+local originalProperties = {}
 
 -- A function to find and store the interactable objects.
 local function findInteractables()
@@ -38,6 +29,13 @@ local function findInteractables()
             -- Check for ProximityPrompt
             if descendant:IsA("ProximityPrompt") then
                 table.insert(interactables, descendant)
+                -- Store original properties
+                originalProperties[descendant] = {
+                    MaxActivationDistance = descendant.MaxActivationDistance,
+                    RequiresLineOfSight = descendant.RequiresLineOfSight,
+                    Enabled = descendant.Enabled,
+                    Style = descendant.Style
+                }
                 -- Check for ClickDetector
             elseif descendant:IsA("ClickDetector") then
                 table.insert(interactables, descendant)
@@ -49,8 +47,58 @@ local function findInteractables()
     end
 end
 
--- Toggle to make prompts visible
-moneyChannel:Toggle("Show Prompts", false, function(value)
+---
+### **UI Creation**
+
+local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "InstantWashUI"
+screenGui.Parent = playerGui
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 200, 0, 100)
+frame.Position = UDim2.new(0.5, -100, 0.5, -50)
+frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+frame.BorderColor3 = Color3.fromRGB(20, 20, 20)
+frame.Draggable = true
+frame.Parent = screenGui
+
+local title = Instance.new("TextLabel")
+title.Text = "Instant Wash"
+title.Size = UDim2.new(1, 0, 0, 25)
+title.Position = UDim2.new(0, 0, 0, 0)
+title.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+title.TextColor3 = Color3.new(1, 1, 1)
+title.Parent = frame
+
+local toggleButton = Instance.new("TextButton")
+toggleButton.Text = "Show Prompts: OFF"
+toggleButton.Size = UDim2.new(0.9, 0, 0, 30)
+toggleButton.Position = UDim2.new(0.05, 0, 0.3, 0)
+toggleButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+toggleButton.TextColor3 = Color3.new(1, 1, 1)
+toggleButton.Parent = frame
+
+local instantWashButton = Instance.new("TextButton")
+instantWashButton.Text = "Instant Wash"
+instantWashButton.Size = UDim2.new(0.9, 0, 0, 30)
+instantWashButton.Position = UDim2.new(0.05, 0, 0.65, 0)
+instantWashButton.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+instantWashButton.TextColor3 = Color3.new(1, 1, 1)
+instantWashButton.Parent = frame
+
+local isToggled = false
+
+toggleButton.MouseButton1Click:Connect(function()
+    isToggled = not isToggled
+    if isToggled then
+        toggleButton.Text = "Show Prompts: ON"
+        toggleButton.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+    else
+        toggleButton.Text = "Show Prompts: OFF"
+        toggleButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    end
+    
     if #interactables == 0 then
         findInteractables()
     end
@@ -58,33 +106,34 @@ moneyChannel:Toggle("Show Prompts", false, function(value)
     if #interactables > 0 then
         for _, interactable in ipairs(interactables) do
             if interactable:IsA("ProximityPrompt") then
-                if value then
+                if isToggled then
                     interactable.MaxActivationDistance = math.huge
                     interactable.RequiresLineOfSight = false
                     interactable.Enabled = true
                     interactable.Style = Enum.ProximityPromptStyle.Custom
                 else
-                    -- We'll just revert the changes, a full revert requires storing original props
-                    interactable.MaxActivationDistance = 10
-                    interactable.RequiresLineOfSight = true
-                    interactable.Enabled = false
-                    interactable.Style = Enum.ProximityPromptStyle.Default
+                    local origProps = originalProperties[interactable]
+                    if origProps then
+                        interactable.MaxActivationDistance = origProps.MaxActivationDistance
+                        interactable.RequiresLineOfSight = origProps.RequiresLineOfSight
+                        interactable.Enabled = origProps.Enabled
+                        interactable.Style = origProps.Style
+                    end
                 end
             end
         end
-        DiscordLib:Notification("Success", "Prompt visibility toggled!", "Okay!")
     else
-        DiscordLib:Notification("Error", "No washing machine interactables found.", "Okay!")
+        warn("No washing machine interactables found.")
     end
 end)
 
-moneyChannel:Button("Instant Wash", function()
+instantWashButton.MouseButton1Click:Connect(function()
     if #interactables == 0 then
         findInteractables()
     end
     
     if not promptRemoteEvent then
-        DiscordLib:Notification("Error", "Interaction remote not found!", "Okay!")
+        warn("Interaction remote not found!")
         return
     end
     
@@ -92,19 +141,18 @@ moneyChannel:Button("Instant Wash", function()
         local interactedCount = 0
         for _, interactable in ipairs(interactables) do
             if (HumanoidRootPart.Position - interactable.Parent.Position).Magnitude <= 200 then
-                -- Fire the remote with the correct object
                 promptRemoteEvent:FireServer(interactable)
                 interactedCount = interactedCount + 1
             end
         end
         
         if interactedCount > 0 then
-            DiscordLib:Notification("Success", "Interacted with " .. interactedCount .. " objects!", "Okay!")
+            print("Interacted with " .. interactedCount .. " objects!")
         else
-            DiscordLib:Notification("Error", "No interactables found within 200 studs.", "Okay!")
+            warn("No interactables found within 200 studs.")
         end
     else
-        DiscordLib:Notification("Error", "No washing machine interactables found.", "Okay!")
+        warn("No washing machine interactables found.")
     end
 end)
 
